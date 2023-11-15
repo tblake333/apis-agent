@@ -35,7 +35,7 @@ for f in fdb_files:
 if len(fdb_files) > 1:
     print("Choosing most recently modified FDB file: " + most_recent_fdb_file)
 
-DB_PATH = microsip_dir + f
+DB_PATH = microsip_dir + most_recent_fdb_file
 DB_USER = "sysdba"
 DB_PASSWORD = "masterkey"
 
@@ -95,6 +95,16 @@ trigger_sql_template = """
     END
     """
 
+trigger_sql_template = """
+    CREATE OR ALTER TRIGGER {table}_CHANGES
+        FOR {table}
+        ACTIVE AFTER INSERT OR UPDATE OR DELETE POSITION 10
+    AS
+    BEGIN
+        POST_EVENT '{table}_CHANGES';
+    END
+    """
+
 for table in table_names:
     # try:
     #     con.execute_immediate("DROP TRIGGER " + table + "_CHANGES;")
@@ -113,12 +123,12 @@ for table in table_names:
         print("unable to process " + table)
     
 
-    # events = con.event_conduit(['ARTICULOS_INSERT'])
-    # events.begin()
-    # e = events.wait()
-    # events.close()
-    # print("EVENT DETECTED!!")
-    # print(e)
+    events = con.event_conduit(['USERS_CHANGES'])
+    events.begin()
+    e = events.wait()
+    events.close()
+    print("EVENT DETECTED!!")
+    print(e)
 
 cur.execute(triggers_query)
 

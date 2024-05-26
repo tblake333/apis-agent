@@ -1,3 +1,6 @@
 build/
 bin/
 dist/
+.pyupdater
+__pycache__/
+*.pyc

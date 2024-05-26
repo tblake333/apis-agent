@@ -1,7 +1,7 @@
 import os
 import requests
 from zipfile import ZipFile
-import main
+import sandbox.main as main
 from autoupdater.version import Version
 from github import Github
 from github.GitRelease import GitRelease

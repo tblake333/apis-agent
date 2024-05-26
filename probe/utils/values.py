@@ -1,0 +1,2 @@
+TABLE_TO_ID = {}
+ID_TO_TABLE = {}

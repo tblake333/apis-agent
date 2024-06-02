@@ -67,10 +67,20 @@ def create_changes_log_table(conn: fdb.Connection) -> None:
             MUTATION varchar(31),
             OCCURRED_AT TIMESTAMP );
     """
+    changes_log_trigger_sql_template = """
+        CREATE OR ALTER TRIGGER INTAKE_TRIGGER
+            FOR CHANGES_LOG
+            ACTIVE AFTER INSERT OR UPDATE OR DELETE POSITION 10
+        AS
+        BEGIN
+            POST_EVENT 'INTAKE_SIGNAL';
+        END
+        """
     ## TODO: Refactor this?
     changes_seq_sql = "CREATE SEQUENCE SEQ_CHANGES_LOG;"
     conn.execute_immediate(changes_log_table_sql)
     conn.execute_immediate(changes_seq_sql)
+    conn.execute_immediate(changes_log_trigger_sql_template)
     conn.commit()
 
 def create_table_trigger(conn: fdb.Connection, cur: fdb.Cursor, table: str, table_id: int) -> None:
@@ -107,6 +117,8 @@ def create_table_triggers(conn: fdb.Connection, cur: fdb.Cursor) -> tuple[dict[s
     table_to_id = {}
     id_to_table = {}
     for table in table_names:
+        if table == "CHANGES_LOG":
+            continue
         table_to_id[table] = id
         id_to_table[id] = table
 
@@ -138,6 +150,7 @@ def reset_state(conn: fdb.Connection, cur: fdb.Cursor) -> None:
     print("successfully dropped all table triggers!")
     print("now dropping changes_log table and sequence...")
     try:
+        conn.execute_immediate(f"DROP TRIGGER INTAKE_TRIGGER;")
         conn.execute_immediate(f"DROP TABLE CHANGES_LOG;")
         conn.execute_immediate(f"DROP SEQUENCE SEQ_CHANGES_LOG;")
         conn.commit()

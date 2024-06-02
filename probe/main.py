@@ -33,8 +33,9 @@ if __name__ == "__main__":
     table_to_id, id_to_table = create_table_triggers(con, cur)
         
     with ThreadPoolExecutor(max_workers=len(table_to_id)) as executor:
+        table_handler_factory = TableHandlerFactory(table_to_id)
         for table in table_to_id:
-            base_handler = TableHandlerFactory.create(table, con)
+            base_handler = table_handler_factory.create(table, con)
             if base_handler is not None:
                 executor.submit(base_handler.begin)
 

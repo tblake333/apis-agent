@@ -15,9 +15,13 @@ END""")
 con.execute_immediate("""CREATE TRIGGER EVENTS_AI FOR T ACTIVE
 AFTER INSERT POSITION 0
 AS
+DECLARE VARIABLE pk_val INTEGER;
 BEGIN
    if (new.c1 = 1) then
-     post_event 'insert_1' ;
+    BEGIN
+     pk_val = NEW.C1;
+     post_event pk_val ;
+    END
    else if (new.c1 = 2) then
      post_event 'insert_2' ;
    else if (new.c1 = 3) then
@@ -37,7 +41,7 @@ def send_events(command_list):
 print("One event")
 #      =========
 timed_event = threading.Timer(3.0,send_events,args=[["insert into T (PK,C1) values (1,1)",]])
-events = con.event_conduit(['insert_1'])
+events = con.event_conduit(['1'])
 events.begin()
 timed_event.start()
 e = events.wait()

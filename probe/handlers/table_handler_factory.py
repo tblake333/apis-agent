@@ -26,6 +26,6 @@ class TableHandlerFactory:
 def register_handlers():
     for table_handler in TABLE_HANDLERS:
         ID_TO_HANDLER[table_handler.TABLE_NAME] = table_handler
-    print(ID_TO_HANDLER)
+    # print(ID_TO_HANDLER)
 
 register_handlers()

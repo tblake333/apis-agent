@@ -1,38 +1,35 @@
 import logging
-from queue import Queue
 from fdb import Connection
 from utils.apis_types import Mutation
-import signal
 
 from listeners.table_listener import TableListener
 
-class TableChange:
-    pass
 
+class ChangesIntake:
 
-class BaseTableHandler:
+    TABLE_NAME = "CHANGES_LOG"
 
-    TABLE_NAME = "table"
-
-    def __init__(self, conn: Connection, table_id: int):
+    def __init__(self, conn: Connection):
         self.conn = conn
-        self.table_id = table_id
-        self.queue = Queue(maxsize=10)
-
+        self.listener = TableListener(self.conn, self.table_id)
 
     def begin(self):
         try:
+            self.listener.begin()
             logging.info(f"Starting worker on {self.TABLE_NAME} handler")
             while True:
-                data = self.queue.get()
-                self.handle_row(data)
-                mutation = row_data.mutation
+                mutation, row = self.listener.listen_for_mutation()
+                if mutation == Mutation.INSERT:
+                    self.handle_insert(row)
+                elif mutation == Mutation.UPDATE:
+                    self.handle_update(row)
+                elif mutation == Mutation.DELETE:
+                    self.handle_delete(row)
+                else:
+                    raise ValueError("Unknown mutation occurred")
         except KeyboardInterrupt:
             print("Interrupted by user!")
             self.listener.close()
-
-    def handle_row_change(change_data: TableChange) -> None:
-        
         
             
     def handle_insert(self, row: int):

@@ -1,6 +1,6 @@
 from fdb import Connection
 from handlers.articulos_handler import ArticulosTableHandler
-from handlers.base_table_handler import BaseTableHandler
+from probe.handlers.base_table_handler import BaseTableHandler
 
 TABLE_HANDLERS: list[BaseTableHandler] = [
     ArticulosTableHandler,

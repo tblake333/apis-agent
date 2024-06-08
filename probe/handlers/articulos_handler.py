@@ -1,4 +1,4 @@
-from handlers.base_table_handler import BaseTableHandler
+from probe.handlers.base_table_handler import BaseTableHandler
 
 
 class ArticulosTableHandler(BaseTableHandler):

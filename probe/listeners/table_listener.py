@@ -7,15 +7,8 @@ class TableListener:
     def __init__(
             self,
             conn: Connection,
-            table_id: str,
     ):
         self.conn = conn
-        self.table_id = table_id
-        self.end_flag_event = f"TABLE_{self.table_id}_CHANGE_END"
-
-        bits = [str(n) for n in range(0, 64)]
-        mutations = ['INSERT', 'UPDATE', 'DELETE']
-        self.events = bits + mutations + [self.end_flag_event]
         
         self.listener = EventListener(self.conn, events=self.events)
 

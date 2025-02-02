@@ -1,0 +1,33 @@
+#!/bin/bash
+
+# Set your credentials and database path
+USERNAME="sysdba"
+PASSWORD="masterkey"
+DATABASE="/Microsip datos/microsip.fdb"
+ISQL="/usr/local/firebird/bin/isql"
+
+mutation_lines=()
+
+add() {
+  if [ "$1" == "" ]; then
+    echo "Must pass in one numerical argument to --add"
+    exit 0
+  fi
+  n=$1
+  for i in $(seq 1 $n); do
+    echo "$i"
+  done
+}
+
+if [ "$1" == "--add" ]; then
+  add $2
+fi
+
+
+# Run isql and send keyboard input using expect
+expect -c "
+  spawn $ISQL
+  expect \"SQL> \"
+  send \"CONNECT '$DATABASE' USER '$USERNAME' PASSWORD '$PASSWORD';\r\"
+  interact
+"

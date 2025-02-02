@@ -1,10 +1,8 @@
 import logging
 from queue import Queue
 from fdb import Connection
-from utils.apis_types import Mutation
-import signal
 
-from listeners.table_listener import TableListener
+from models.change import Change
 
 class TableChange:
     pass
@@ -14,33 +12,32 @@ class BaseTableHandler:
 
     TABLE_NAME = "table"
 
-    def __init__(self, conn: Connection, table_id: int):
+    def __init__(self, conn: Connection, table: str, primary_key: str):
         self.conn = conn
-        self.table_id = table_id
-        self.queue = Queue(maxsize=10)
+        self.table = table
+        self.primary_key = primary_key
 
-
-    def begin(self):
-        try:
-            logging.info(f"Starting worker on {self.TABLE_NAME} handler")
-            while True:
-                data = self.queue.get()
-                self.handle_row(data)
-                mutation = row_data.mutation
-        except KeyboardInterrupt:
-            print("Interrupted by user!")
-            self.listener.close()
-
-    def handle_row_change(change_data: TableChange) -> None:
+    def handle_mutation(self, mutation: Change, worker_id: int):
+        mutation_type = mutation.mutation
+        cur = self.conn.cursor()
+        cur.execute(f"SELECT * FROM {self.table} WHERE {self.primary_key} = {mutation.pk_val}")
+        print(f"[Worker {worker_id}] GOT MUTATION: " + str(cur.fetchone()))
+        if mutation_type == "INSERT":
+            self.handle_insert(mutation)
+        elif mutation_type == "UPDATE":
+            self.handle_update(mutation)
+        elif mutation_type == "DELETE":
+            self.handle_delete(mutation)
         
+    
         
             
-    def handle_insert(self, row: int):
-        raise NotImplementedError("handle_insert function not implemented")
+    def handle_insert(self, mutation: Change):
+        pass
     
-    def handle_update(self, row: int):
-        raise NotImplementedError("handle_update function not implemented")
+    def handle_update(self, mutation: Change):
+        pass
     
-    def handle_delete(self, row: int):
-        raise NotImplementedError("handle_delete function not implemented")
+    def handle_delete(self, mutation: Change):
+        pass
     

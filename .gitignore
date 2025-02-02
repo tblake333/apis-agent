@@ -4,3 +4,6 @@ dist/
 .pyupdater
 __pycache__/
 *.pyc
+sandbox
+.vscode
+.DS_STORE

@@ -1,5 +1,4 @@
 from queue import Queue
-from threading import Thread
 import fdb
 import sys
 import signal
@@ -9,7 +8,8 @@ from concurrent.futures import ThreadPoolExecutor
 from handlers.changes_intake import ChangesIntake
 from handlers.changes_processor import ChangesProcessor
 from models.connection_info import ConnectionInfo
-from utils.fdb_helper import create_table_triggers, delete_processed_mutations, ensure_clean_slate, get_microsip_fdb_file_path, get_table_names, get_table_to_primary_key, create_changes_log_table, process_leftover_mutations, reset_state
+from database.database_manager import DatabaseManager
+from utils.fdb_helper import get_microsip_fdb_file_path
 
 if __name__ == "__main__":
 
@@ -19,32 +19,19 @@ if __name__ == "__main__":
 
     con = fdb.connect(dsn=DB_PATH, user=DB_USER, password=DB_PASSWORD, charset='UTF8')
 
+    db_manager = DatabaseManager(con)
+
     cur = con.cursor()
 
-    table_to_primary_key = get_table_to_primary_key(cur)
-
     if "--reset-and-exit" in sys.argv:
-        reset_state(con, cur, table_to_primary_key)
+        db_manager.reset_state()
         exit()
 
     if "--reset" in sys.argv:
-        reset_state(con, cur, table_to_primary_key)
+        db_manager.reset_state()
 
-    table_names = get_table_names(cur)
-    if "CHANGES_LOG" not in table_names:
-        print("no changes_log table detected. creating one...")
-        create_changes_log_table(con)
-    else:
-        print("changes_log table found. skipping creation...")
-
-
-    table_to_id, id_to_table = create_table_triggers(con, cur, table_to_primary_key)
-
-    process_leftover_mutations(con, id_to_table, table_to_primary_key)
-
-    delete_processed_mutations(con)
-
-    ensure_clean_slate(con)
+    id_to_table, table_to_primary_key= db_manager.setup()
+    db_manager.ensure_clean_slate(con)
 
     output = Queue()
 

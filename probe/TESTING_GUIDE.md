@@ -30,12 +30,29 @@ pip install -r requirements-test.txt
 
 ### 2. Run All Tests
 ```bash
+# Using the simple 't' command (recommended)
+t tests.test_config  # Run all tests in a module
+
+# Using the test runner script
 python tests/run_tests.py
+
+# Or using pytest directly
+pytest tests/ -v
 ```
 
 ### 3. Run Specific Tests
 ```bash
+# Using the simple 't' command (recommended)
+t test_ensure_clean_slate_empty                    # Run specific test method
+t TestDatabaseManager                              # Run all tests in a class
+t tests.test_config.TestDatabaseConfig           # Run specific test class
+t tests.test_config.TestDatabaseConfig.test_default_values  # Run specific test method
+
+# Using the test runner script
 python tests/run_tests.py test_config.py
+
+# Or using pytest
+pytest tests/test_config.py -v
 ```
 
 ## Test Categories

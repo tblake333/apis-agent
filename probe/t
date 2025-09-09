@@ -1,0 +1,163 @@
+#!/usr/bin/env python3
+"""
+Simple test runner command 't' for the probe application.
+
+Usage:
+    t <test_name>                    # Run specific test method
+    t <TestClass>                    # Run all tests in a class
+    t <module_path>                  # Run all tests in a module
+    t <module_path>.<TestClass>      # Run specific test class in module
+    t <module_path>.<TestClass>.<test_method>  # Run specific test method
+
+Examples:
+    t test_ensure_clean_slate_empty
+    t TestDatabaseManager
+    t tests.test_database_manager
+    t tests.test_database_manager.TestDatabaseManager
+    t tests.test_database_manager.TestDatabaseManager.test_ensure_clean_slate_empty
+"""
+import sys
+import os
+import subprocess
+from pathlib import Path
+
+
+def find_test_file(test_name):
+    """Find the test file that contains the given test name."""
+    tests_dir = Path(__file__).parent / "tests"
+    
+    # If it's already a module path, use it directly
+    if test_name.startswith("probe.tests.") or test_name.startswith("tests."):
+        return test_name
+    
+    # Search for test files
+    for test_file in tests_dir.glob("test_*.py"):
+        try:
+            with open(test_file, 'r') as f:
+                content = f.read()
+                if test_name in content:
+                    # Convert to module path
+                    module_name = f"tests.{test_file.stem}"
+                    return module_name
+        except Exception:
+            continue
+    
+    return None
+
+
+def build_pytest_command(test_identifier):
+    """Build the pytest command for the given test identifier."""
+    # Change to the probe directory (find it relative to this script)
+    script_path = Path(__file__).resolve()
+    probe_dir = script_path.parent
+    os.chdir(probe_dir)
+    
+    # Build the test path and arguments
+    cmd = [sys.executable, "-m", "pytest", "-v", "--tb=short", "--color=yes"]
+    
+    # Check if it's a specific test path (has dots and looks like module.class.method)
+    if test_identifier.startswith("tests.") and test_identifier.count(".") >= 2:
+        # Parse the path: tests.module.class.method
+        parts = test_identifier.split(".")
+        if len(parts) >= 3:
+            module_name = parts[1]  # Get the module name
+            test_path = f"tests/{module_name}.py"
+            
+            # Build the pytest path with :: separators
+            if len(parts) == 3:
+                # tests.module.class
+                pytest_path = f"{test_path}::{parts[2]}"
+            elif len(parts) == 4:
+                # tests.module.class.method
+                pytest_path = f"{test_path}::{parts[2]}::{parts[3]}"
+            else:
+                # More than 4 parts, join them with ::
+                pytest_path = f"{test_path}::{'::'.join(parts[2:])}"
+            
+            cmd.append(pytest_path)
+        else:
+            # Just a module path
+            module_name = test_identifier.replace("tests.", "")
+            test_path = f"tests/{module_name}.py"
+            cmd.append(test_path)
+    elif test_identifier.startswith("probe.tests."):
+        # Module path with probe prefix
+        module_name = test_identifier.replace("probe.tests.", "")
+        test_path = f"tests/{module_name}.py"
+        cmd.append(test_path)
+    elif test_identifier.startswith("tests."):
+        # Simple module path
+        module_name = test_identifier.replace("tests.", "")
+        test_path = f"tests/{module_name}.py"
+        cmd.append(test_path)
+    else:
+        # Try to find the test file
+        found_module = find_test_file(test_identifier)
+        if found_module:
+            # Use pattern matching to run only the specific test
+            test_path = f"{found_module.replace('tests.', 'tests/')}.py"
+            cmd.append(test_path)
+            cmd.extend(["-k", test_identifier])
+        else:
+            # Use pattern matching for test names across all tests
+            cmd.append("tests/")
+            cmd.extend(["-k", test_identifier])
+    
+    return cmd
+
+
+def run_test(test_identifier):
+    """Run the specified test."""
+    cmd = build_pytest_command(test_identifier)
+    
+    print(f"Running test: {test_identifier}")
+    print(f"Command: {' '.join(cmd)}")
+    print("-" * 50)
+    
+    try:
+        result = subprocess.run(cmd, check=True)
+        print("\n" + "=" * 50)
+        print("✅ Test passed!")
+        return 0
+    except subprocess.CalledProcessError as e:
+        print("\n" + "=" * 50)
+        print(f"❌ Test failed with exit code {e.returncode}")
+        return e.returncode
+    except FileNotFoundError:
+        print("❌ pytest not found. Please install it with: pip install pytest")
+        return 1
+
+
+def show_help():
+    """Show help information."""
+    print(__doc__)
+    print("\nAvailable test files:")
+    tests_dir = Path(__file__).parent / "tests"
+    for test_file in sorted(tests_dir.glob("test_*.py")):
+        print(f"  - {test_file.stem}")
+    
+    print("\nExamples:")
+    print("  t test_ensure_clean_slate_empty")
+    print("  t TestDatabaseManager")
+    print("  t tests.test_database_manager")
+    print("  t tests.test_database_manager.TestDatabaseManager")
+    print("  t tests.test_database_manager.TestDatabaseManager.test_ensure_clean_slate_empty")
+
+
+def main():
+    """Main function."""
+    if len(sys.argv) < 2:
+        show_help()
+        return 1
+    
+    test_identifier = sys.argv[1]
+    
+    if test_identifier in ["-h", "--help", "help"]:
+        show_help()
+        return 0
+    
+    return run_test(test_identifier)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

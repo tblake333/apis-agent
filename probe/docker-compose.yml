@@ -1,28 +1,18 @@
 # Docker Compose for local development
-# This file sets up a local Firebird database and mock cloud API for testing
-
-version: '3.8'
+# Firebird runs in container, probe app runs on host for easier debugging
 
 services:
-  # Firebird database for local testing
   firebird:
     image: jacobalberty/firebird:v4.0
     container_name: probe-firebird
     ports:
       - "3050:3050"
     volumes:
-      - ./test-data:/firebird/data
-      - ./scripts:/scripts
+      - "./test-data:/Microsip datos"
     environment:
-      - FIREBIRD_DATABASE=microsip_test.fdb
       - FIREBIRD_USER=sysdba
       - FIREBIRD_PASSWORD=masterkey
       - EnableLegacyClientAuth=true
-    healthcheck:
-      test: ["CMD", "isql", "-user", "sysdba", "-password", "masterkey", "localhost:microsip_test.fdb", "-q", "-e", "-i", "/dev/null"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
 
   # Mock cloud API for local testing
   mock-api:
@@ -36,6 +26,3 @@ services:
     command: python server.py
     depends_on:
       - firebird
-
-volumes:
-  firebird-data:

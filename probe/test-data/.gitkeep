@@ -1,0 +1,2 @@
+# This directory is for Firebird test database files
+# Add your test .fdb files here or let Docker create them

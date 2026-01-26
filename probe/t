@@ -24,20 +24,23 @@ from pathlib import Path
 
 def find_test_file(test_name):
     """Find the test file that contains the given test name."""
-    tests_dir = Path(__file__).parent / "tests"
+    probe_dir = Path(__file__).parent
     
     # If it's already a module path, use it directly
-    if test_name.startswith("probe.tests.") or test_name.startswith("tests."):
+    if test_name.startswith("probe.") or test_name.startswith("tests."):
         return test_name
     
-    # Search for test files
-    for test_file in tests_dir.glob("test_*.py"):
+    # Search for test files recursively throughout the project
+    for test_file in probe_dir.rglob("test_*.py"):
         try:
             with open(test_file, 'r') as f:
                 content = f.read()
                 if test_name in content:
-                    # Convert to module path
-                    module_name = f"tests.{test_file.stem}"
+                    # Convert to module path relative to probe directory
+                    relative_path = test_file.relative_to(probe_dir)
+                    module_parts = list(relative_path.parts)
+                    module_parts[-1] = module_parts[-1].replace('.py', '')  # Remove .py extension
+                    module_name = '.'.join(module_parts)
                     return module_name
         except Exception:
             continue
@@ -55,41 +58,43 @@ def build_pytest_command(test_identifier):
     # Build the test path and arguments
     cmd = [sys.executable, "-m", "pytest", "-v", "--tb=short", "--color=yes"]
     
-    # Check if it's a specific test path (has dots and looks like module.class.method)
-    if test_identifier.startswith("tests.") and test_identifier.count(".") >= 2:
-        # Parse the path: tests.module.class.method
+    # Check if it's a module path (contains dots)
+    if "." in test_identifier:
+        # Remove probe. prefix if present
+        if test_identifier.startswith("probe."):
+            test_identifier = test_identifier[6:]  # Remove "probe."
+        
+        # Check if this looks like a class or method reference
+        # If it ends with a class name (starts with capital) or method name (starts with lowercase)
         parts = test_identifier.split(".")
-        if len(parts) >= 3:
-            module_name = parts[1]  # Get the module name
-            test_path = f"tests/{module_name}.py"
-            
-            # Build the pytest path with :: separators
-            if len(parts) == 3:
-                # tests.module.class
-                pytest_path = f"{test_path}::{parts[2]}"
-            elif len(parts) == 4:
-                # tests.module.class.method
-                pytest_path = f"{test_path}::{parts[2]}::{parts[3]}"
+        
+        # Find where the file path ends and class/method names begin
+        file_parts = []
+        class_method_parts = []
+        
+        for i, part in enumerate(parts):
+            # If this part starts with capital letter, it's likely a class name
+            # Only treat lowercase parts as methods if they come after a class name
+            if part[0].isupper():
+                class_method_parts = parts[i:]
+                break
             else:
-                # More than 4 parts, join them with ::
-                pytest_path = f"{test_path}::{'::'.join(parts[2:])}"
+                file_parts.append(part)
+        
+        if file_parts:
+            # Build the file path
+            file_path = "/".join(file_parts) + ".py"
             
-            cmd.append(pytest_path)
+            if class_method_parts:
+                # Add class/method parts with :: separators
+                pytest_path = f"{file_path}::{'::'.join(class_method_parts)}"
+                cmd.append(pytest_path)
+            else:
+                cmd.append(file_path)
         else:
-            # Just a module path
-            module_name = test_identifier.replace("tests.", "")
-            test_path = f"tests/{module_name}.py"
-            cmd.append(test_path)
-    elif test_identifier.startswith("probe.tests."):
-        # Module path with probe prefix
-        module_name = test_identifier.replace("probe.tests.", "")
-        test_path = f"tests/{module_name}.py"
-        cmd.append(test_path)
-    elif test_identifier.startswith("tests."):
-        # Simple module path
-        module_name = test_identifier.replace("tests.", "")
-        test_path = f"tests/{module_name}.py"
-        cmd.append(test_path)
+            # All parts are file path parts
+            file_path = "/".join(parts) + ".py"
+            cmd.append(file_path)
     else:
         # Try to find the test file
         found_module = find_test_file(test_identifier)
@@ -132,9 +137,17 @@ def show_help():
     """Show help information."""
     print(__doc__)
     print("\nAvailable test files:")
-    tests_dir = Path(__file__).parent / "tests"
-    for test_file in sorted(tests_dir.glob("test_*.py")):
-        print(f"  - {test_file.stem}")
+    probe_dir = Path(__file__).parent
+    test_files = []
+    for test_file in sorted(probe_dir.rglob("test_*.py")):
+        relative_path = test_file.relative_to(probe_dir)
+        module_parts = list(relative_path.parts)
+        module_parts[-1] = module_parts[-1].replace('.py', '')  # Remove .py extension
+        module_name = '.'.join(module_parts)
+        test_files.append(module_name)
+    
+    for test_file in sorted(test_files):
+        print(f"  - {test_file}")
     
     print("\nExamples:")
     print("  t test_ensure_clean_slate_empty")

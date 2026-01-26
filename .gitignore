@@ -7,3 +7,9 @@ __pycache__/
 sandbox
 .vscode
 .DS_STORE
+
+# Probe application
+probe/.env
+probe/probe_buffer*.db
+probe/test-data/*.fdb
+*.fdb

@@ -7,7 +7,7 @@ import fdb
 from pathlib import Path
 from unittest.mock import Mock, MagicMock
 
-from config.app_config import AppConfig, DatabaseConfig, WorkerConfig
+from config.app_config import AppConfig, DatabaseConfig, WorkerConfig, CloudSyncConfig
 from models.connection_info import ConnectionInfo
 
 
@@ -76,11 +76,24 @@ def test_worker_config():
 
 
 @pytest.fixture
-def test_app_config(test_database_config, test_worker_config):
+def test_cloud_sync_config():
+    """Create a test cloud sync configuration."""
+    return CloudSyncConfig(
+        endpoint="http://localhost:8080/api/changes",
+        api_key="test-api-key",
+        buffer_path=":memory:",  # Use in-memory SQLite for tests
+        enable_background_retry=False,  # Disable for tests
+        enabled=True
+    )
+
+
+@pytest.fixture
+def test_app_config(test_database_config, test_worker_config, test_cloud_sync_config):
     """Create a test application configuration."""
     return AppConfig(
         database=test_database_config,
-        workers=test_worker_config
+        workers=test_worker_config,
+        cloud_sync=test_cloud_sync_config
     )
 
 
@@ -134,4 +147,18 @@ def mock_executor():
     mock = Mock()
     mock.submit = Mock()
     mock.shutdown = Mock()
+    return mock
+
+
+@pytest.fixture
+def mock_sync_client():
+    """Create a mock cloud sync client for testing."""
+    mock = Mock()
+    mock.send_insert = Mock(return_value=True)
+    mock.send_update = Mock(return_value=True)
+    mock.send_delete = Mock(return_value=True)
+    mock.send = Mock(return_value=True)
+    mock.get_buffer_stats = Mock(return_value={'pending_count': 0, 'endpoint': 'http://test', 'connected': True})
+    mock.flush_buffer = Mock(return_value=0)
+    mock.close = Mock()
     return mock

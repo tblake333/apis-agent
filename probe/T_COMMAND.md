@@ -22,6 +22,8 @@ After installation, you can use `t` from any directory!
 t <test_identifier>
 ```
 
+The `t` command automatically finds tests anywhere in your project structure, not just in a single `tests/` directory.
+
 ## Examples
 
 ### Run a specific test method
@@ -41,28 +43,34 @@ t TestDatabaseConfig
 t tests.test_config
 t tests.test_models
 t tests.test_database_manager
+t handlers.tests.test_changes_intake_tests
+t app.test_app_example
 ```
 
 ### Run a specific test class in a module
 ```bash
 t tests.test_config.TestDatabaseConfig
 t tests.test_models.TestChange
+t app.test_app_example.TestAppExample
 ```
 
 ### Run a specific test method in a specific class
 ```bash
 t tests.test_config.TestDatabaseConfig.test_default_values
 t tests.test_database_manager.TestDatabaseManager.test_ensure_clean_slate_empty
+t app.test_app_example.TestAppExample.test_app_functionality
 ```
 
 ## How it works
 
 The `t` command automatically:
-- Finds the correct test file for test names
-- Uses pytest's pattern matching (`-k`) for flexible test selection
-- Provides verbose output with colors
-- Shows short tracebacks for failures
-- Runs from the correct directory
+- **Recursively searches** for test files throughout your project structure
+- **Finds the correct test file** for test names using pattern matching
+- **Converts dot notation** to proper pytest paths (e.g., `app.test_example.TestClass` → `app/test_example.py::TestClass`)
+- **Uses pytest's pattern matching** (`-k`) for flexible test selection
+- **Provides verbose output** with colors
+- **Shows short tracebacks** for failures
+- **Runs from the correct directory** automatically
 
 ## Help
 
@@ -123,8 +131,10 @@ tests/test_models.py::TestConnectionInfo::test_connection_info_equality PASSED [
 
 ## Tips
 
-- Use tab completion for test names (if your shell supports it)
-- The command automatically finds the right test file for test method names
-- Use dots to specify exact paths when you want to be precise
-- Pattern matching works across all test files if no specific file is found
-- All tests run with verbose output and colored results
+- **Create tests anywhere**: You can create test files in any directory (e.g., `app/test_*.py`, `handlers/tests/test_*.py`)
+- **Use tab completion** for test names (if your shell supports it)
+- **The command automatically finds** the right test file for test method names
+- **Use dots to specify exact paths** when you want to be precise
+- **Pattern matching works** across all test files if no specific file is found
+- **All tests run** with verbose output and colored results
+- **Works from any directory** - the command automatically finds the project root

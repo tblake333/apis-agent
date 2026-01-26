@@ -17,10 +17,11 @@ class TestProbeApplication:
     def test_initialization(self, test_app_config):
         """Test ProbeApplication initialization."""
         app = ProbeApplication(test_app_config)
-        
+
         assert app.config == test_app_config
         assert app.connection is None
         assert app.db_manager is None
+        assert app.sync_client is None
         assert app.changes_intake is None
         assert app.changes_processor is None
         assert app.output_queue is None
@@ -89,16 +90,17 @@ class TestProbeApplication:
         assert id_to_table == {1: 'test_table'}
         assert table_to_primary_key == {'test_table': 'id'}
     
-    def test_setup_change_monitoring(self, test_app_config):
+    def test_setup_change_monitoring(self, test_app_config, mock_sync_client):
         """Test change monitoring setup."""
         app = ProbeApplication(test_app_config)
         app.connection = Mock()
-        
+        app.sync_client = mock_sync_client
+
         id_to_table = {1: 'test_table'}
         table_to_primary_key = {'test_table': 'id'}
-        
+
         app.setup_change_monitoring(id_to_table, table_to_primary_key)
-        
+
         assert app.output_queue is not None
         assert isinstance(app.output_queue, Queue)
         assert app.changes_intake is not None
@@ -143,38 +145,41 @@ class TestProbeApplication:
         assert app._shutdown_requested is True
         app.shutdown.assert_called_once()
     
-    def test_shutdown(self, test_app_config, mock_changes_intake, mock_executor):
+    def test_shutdown(self, test_app_config, mock_changes_intake, mock_executor, mock_sync_client):
         """Test application shutdown."""
         app = ProbeApplication(test_app_config)
         app.connection = Mock()
         app.output_queue = Queue()
         app.changes_intake = mock_changes_intake
         app.executor = mock_executor
-        
+        app.sync_client = mock_sync_client
+
         app.shutdown()
-        
+
         # Check that shutdown signal was sent
         assert app.output_queue.get() is None
-        
+
         mock_changes_intake.stop.assert_called_once()
         mock_changes_intake.join.assert_called_once()
         mock_executor.shutdown.assert_called_once_with(wait=True)
+        mock_sync_client.close.assert_called_once()
         app.connection.close.assert_called_once()
     
     @patch('app.probe_application.ThreadPoolExecutor')
-    def test_run_complete_flow(self, mock_executor_class, test_app_config, 
+    def test_run_complete_flow(self, mock_executor_class, test_app_config,
                               mock_database_manager, mock_changes_intake):
         """Test the complete application run flow."""
         # Setup mocks
         mock_conn = Mock()
         mock_executor = Mock()
         mock_executor_class.return_value = mock_executor
-        
+
         app = ProbeApplication(test_app_config)
-        
+
         # Mock all the setup methods
         app.setup_database_connection = Mock()
         app.setup_database_connection.side_effect = lambda: setattr(app, 'connection', mock_conn)
+        app.setup_cloud_sync = Mock()
         app.handle_command_line_args = Mock()
         app.setup_database_schema = Mock(return_value=({1: 'test_table'}, {'test_table': 'id'}))
         app.setup_change_monitoring = Mock()
@@ -182,17 +187,18 @@ class TestProbeApplication:
         app.start_change_intake = Mock()
         app.start_workers = Mock()
         app.shutdown = Mock()
-        
+
         # Mock changes_intake to simulate normal operation
         app.changes_intake = mock_changes_intake
         mock_changes_intake.join.side_effect = KeyboardInterrupt()  # Simulate Ctrl+C
-        
+
         # Run the application
         with pytest.raises(KeyboardInterrupt):
             app.run()
-        
+
         # Verify all setup methods were called
         app.setup_database_connection.assert_called_once()
+        app.setup_cloud_sync.assert_called_once()
         app.handle_command_line_args.assert_called_once()
         app.setup_database_schema.assert_called_once()
         app.setup_change_monitoring.assert_called_once()

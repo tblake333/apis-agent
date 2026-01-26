@@ -13,3 +13,4 @@ probe/.env
 probe/probe_buffer*.db
 probe/test-data/*.fdb
 *.fdb
+schema.json

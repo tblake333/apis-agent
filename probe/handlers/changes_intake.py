@@ -19,6 +19,7 @@ class ChangesIntake(Thread):
 
     def __init__(self, conn_info: ConnectionInfo, pos: int, output: Queue):
         super(ChangesIntake, self).__init__()
+        self.daemon = True  # Allow process to exit even if this thread is running
         self.conn_info = conn_info
         self.conn = None
         self.events = [ChangesIntake.EVENT_NAME]
@@ -47,25 +48,24 @@ class ChangesIntake(Thread):
                     self.conn = None
 
     def _get_connection(self) -> Connection:
-        """Get a new database connection."""
-        with self._conn_lock:
-            if self.conn:
-                try:
-                    self.conn.close()
-                except Exception as e:
-                    logger.error(f"Error closing old connection: {e}")
-            
+        """Get a new database connection. Caller must hold _conn_lock."""
+        if self.conn:
             try:
-                self.conn = fdb.connect(
-                    dsn=self.conn_info.db_path,
-                    user=self.conn_info.db_user,
-                    password=self.conn_info.db_password,
-                    charset='UTF8'
-                )
-                return self.conn
+                self.conn.close()
             except Exception as e:
-                logger.error(f"Error creating new connection: {e}")
-                raise
+                logger.error(f"Error closing old connection: {e}")
+
+        try:
+            self.conn = fdb.connect(
+                dsn=self.conn_info.db_path,
+                user=self.conn_info.db_user,
+                password=self.conn_info.db_password,
+                charset='UTF8'
+            )
+            return self.conn
+        except Exception as e:
+            logger.error(f"Error creating new connection: {e}")
+            raise
 
     def _process_changes(self, conn: Connection):
         """Process changes from the database."""
@@ -92,10 +92,10 @@ class ChangesIntake(Thread):
                         self.conn = self._get_connection()
                     
                     with contextlib.redirect_stderr(io.StringIO()), self.conn.event_conduit(event_names=self.events) as conduit:
-                        conduit.wait()
-                        logger.info("Received change event")
+                        conduit.wait(timeout=1.0)  # Check stop flag periodically
                         if self.stopped():
                             break
+                        logger.info("Received change event")
                         self._process_changes(self.conn)
             except fdb.Error as e:
                 logger.error(f"Database error in intake loop: {e}")

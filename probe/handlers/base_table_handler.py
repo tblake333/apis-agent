@@ -5,6 +5,8 @@ This module handles INSERT, UPDATE, and DELETE mutations by fetching
 the relevant data and sending it to the cloud sync client.
 """
 
+from typing import Optional
+
 from fdb import Connection
 
 from models.change import Change
@@ -27,7 +29,7 @@ class BaseTableHandler:
 
     TABLE_NAME = "table"
 
-    def __init__(self, conn: Connection, table: str, primary_key: str, sync_client: CloudSyncClient):
+    def __init__(self, conn: Connection, table: str, primary_key: str, sync_client: Optional[CloudSyncClient] = None):
         """
         Initialize the table handler.
 
@@ -35,7 +37,7 @@ class BaseTableHandler:
             conn: Database connection for fetching row data
             table: Name of the table being handled
             primary_key: Name of the primary key column
-            sync_client: CloudSyncClient for sending changes to the cloud
+            sync_client: CloudSyncClient for sending changes to the cloud (optional during startup)
         """
         self.conn = conn
         self.table = table
@@ -73,11 +75,12 @@ class BaseTableHandler:
         cur = self.conn.cursor()
         cur.execute(f"SELECT * FROM {self.table} WHERE {self.primary_key} = {mutation.pk_val}")
         row_data = cur.fetchone()
-        self.sync_client.send_insert(
-            table=self.table,
-            row_data=row_data,
-            timestamp=mutation.occured_at.timestamp()
-        )
+        if self.sync_client:
+            self.sync_client.send_insert(
+                table=self.table,
+                row_data=row_data,
+                timestamp=mutation.occured_at.timestamp()
+            )
 
     def handle_update(self, mutation: Change):
         """
@@ -91,11 +94,12 @@ class BaseTableHandler:
         cur = self.conn.cursor()
         cur.execute(f"SELECT * FROM {self.table} WHERE {self.primary_key} = {mutation.pk_val}")
         row_data = cur.fetchone()
-        self.sync_client.send_update(
-            table=self.table,
-            row_data=row_data,
-            timestamp=mutation.occured_at.timestamp()
-        )
+        if self.sync_client:
+            self.sync_client.send_update(
+                table=self.table,
+                row_data=row_data,
+                timestamp=mutation.occured_at.timestamp()
+            )
 
     def handle_delete(self, mutation: Change):
         """
@@ -106,9 +110,10 @@ class BaseTableHandler:
         Args:
             mutation: The DELETE change event
         """
-        self.sync_client.send_delete(
-            table=self.table,
-            primary_key=self.primary_key,
-            value=mutation.pk_val,
-            timestamp=mutation.occured_at.timestamp()
-        )
+        if self.sync_client:
+            self.sync_client.send_delete(
+                table=self.table,
+                primary_key=self.primary_key,
+                value=mutation.pk_val,
+                timestamp=mutation.occured_at.timestamp()
+            )

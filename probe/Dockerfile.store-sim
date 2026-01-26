@@ -1,0 +1,18 @@
+FROM jacobalberty/firebird:2.5-ss
+
+# Set up Firebird authentication
+ENV ISC_USER=sysdba
+ENV ISC_PASSWORD=masterkey
+
+# Install Python (Firebird image is Debian-based)
+USER root
+RUN apt-get update && apt-get install -y \
+    python3 \
+    python3-pip \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Python dependencies
+RUN pip3 install fdb
+
+# Scripts will be mounted at /app
+WORKDIR /app

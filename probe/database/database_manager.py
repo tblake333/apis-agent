@@ -1,4 +1,5 @@
 from functools import reduce
+from typing import Optional
 import fdb
 
 
@@ -6,17 +7,17 @@ class DatabaseManager:
     def __init__(self, conn: fdb.Connection):
         self.conn = conn
 
-    def setup(self) -> tuple[dict[int, str], dict[str, str]]:
+    def setup(self, sync_client=None) -> tuple[dict[int, str], dict[str, str]]:
         table_names = self.get_table_names()
         if "CHANGES_LOG" not in table_names:
             print("no changes_log table detected. creating one...")
             self.create_changes_log_table()
         else:
             print("changes_log table found. skipping creation...")
-        
+
         table_to_primary_key = self.get_table_to_primary_key()
         _, id_to_table = self.create_table_triggers(table_to_primary_key)
-        self.process_leftover_mutations(id_to_table, table_to_primary_key)
+        self.process_leftover_mutations(id_to_table, table_to_primary_key, sync_client)
         self.delete_processed_mutations()
         return id_to_table, table_to_primary_key
 
@@ -27,10 +28,10 @@ class DatabaseManager:
         cur.execute("DELETE FROM CHANGES_LOG WHERE PROCESSED = 1")
         self.conn.commit()
 
-    def process_leftover_mutations(self, id_to_table, table_to_primary_key):
+    def process_leftover_mutations(self, id_to_table, table_to_primary_key, sync_client=None):
         from handlers.base_table_handler import BaseTableHandler
         from models.change import Change
-        
+
         cur = self.conn.cursor()
         cur.execute(f"SELECT * FROM CHANGES_LOG WHERE PROCESSED = 0")
         rows = cur.fetchall()
@@ -40,7 +41,7 @@ class DatabaseManager:
             change = Change(*row)
             table_name = id_to_table[change.table_id]
             primary_key = table_to_primary_key[table_name]
-            table_handler = BaseTableHandler(self.conn, table_name, primary_key)
+            table_handler = BaseTableHandler(self.conn, table_name, primary_key, sync_client)
             table_handler.handle_mutation(change, "Main")
             processed_cur = self.conn.cursor()
             processed_cur.execute(f"UPDATE CHANGES_LOG SET PROCESSED = 1 WHERE LOG_ID = {change.log_id}")

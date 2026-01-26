@@ -96,7 +96,7 @@ class ProbeApplication:
             Tuple of (id_to_table, table_to_primary_key) mappings
         """
         print("Setting up database schema...")
-        id_to_table, table_to_primary_key = self.db_manager.setup()
+        id_to_table, table_to_primary_key = self.db_manager.setup(self.sync_client)
         self.db_manager.ensure_clean_slate(self.connection)
         print("Database schema setup completed")
         return id_to_table, table_to_primary_key
@@ -114,19 +114,21 @@ class ProbeApplication:
         # Create output queue for change processing
         self.output_queue = Queue()
 
-        # Setup changes intake
-        self.changes_intake = ChangesIntake(
-            self.connection,
-            self.config.workers.intake_position,
-            self.output_queue
-        )
-
-        # Setup changes processor
+        # Create connection info for intake and processor
         conn_info = ConnectionInfo(
             db_path=self.config.database.path,
             db_user=self.config.database.user,
             db_password=self.config.database.password
         )
+
+        # Setup changes intake
+        self.changes_intake = ChangesIntake(
+            conn_info,
+            self.config.workers.intake_position,
+            self.output_queue
+        )
+
+        # Setup changes processor
         self.changes_processor = ChangesProcessor(
             conn_info,
             self.output_queue,
@@ -209,9 +211,10 @@ class ProbeApplication:
         print("Shutting down application...")
 
         try:
-            # Signal intake to stop
+            # Signal ALL workers to stop (one None per worker)
             if self.output_queue is not None:
-                self.output_queue.put(None)
+                for _ in range(self.config.workers.max_workers):
+                    self.output_queue.put(None)
 
             if self.changes_intake is not None:
                 self.changes_intake.stop()
@@ -223,11 +226,11 @@ class ProbeApplication:
                     )
                     self.connection.commit()
 
-                self.changes_intake.join()
+                self.changes_intake.join(timeout=5.0)  # Don't wait forever
 
             # Shutdown executor
             if self.executor is not None:
-                self.executor.shutdown(wait=True)
+                self.executor.shutdown(wait=True, cancel_futures=True)
 
             # Close sync client
             if self.sync_client is not None:

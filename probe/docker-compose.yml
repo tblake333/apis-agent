@@ -1,20 +1,31 @@
 # Docker Compose for local development
-# Firebird runs in container, probe app runs on host for easier debugging
+#
+# NOTE: The existing 'probe' container (tristanblake/microsip-env:2.5.9) can also be used
+# for running scripts. It has Firebird + Python + fdb already configured with a working
+# database at /Microsip datos/microsip.fdb. Use: ./run-in-store.sh <script> [args]
+#
+# This compose file is for creating a fresh store simulator if needed.
 
 services:
-  firebird:
-    image: jacobalberty/firebird:v4.0
-    container_name: probe-firebird
+  store-sim:
+    build:
+      context: .
+      dockerfile: Dockerfile.store-sim
+    container_name: store-sim
     ports:
       - "3050:3050"
     volumes:
-      - "./test-data:/Microsip datos"
+      - "./test-data:/firebird/data"   # Database files
+      - "..:/app"                       # Python scripts (parent dir)
     environment:
+      - ISC_USER=sysdba
+      - ISC_PASSWORD=masterkey
       - FIREBIRD_USER=sysdba
       - FIREBIRD_PASSWORD=masterkey
       - EnableLegacyClientAuth=true
 
   # Mock cloud API for local testing
+  # Can be started independently: docker-compose up -d mock-api
   mock-api:
     image: python:3.11-slim
     container_name: probe-mock-api
@@ -24,5 +35,8 @@ services:
       - ./mock_api:/app
     working_dir: /app
     command: python server.py
-    depends_on:
-      - firebird
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 3

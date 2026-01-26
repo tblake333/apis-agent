@@ -1,0 +1,28 @@
+# Docker Compose for local development
+# Firebird runs in container, probe app runs on host for easier debugging
+
+services:
+  firebird:
+    image: jacobalberty/firebird:v4.0
+    container_name: probe-firebird
+    ports:
+      - "3050:3050"
+    volumes:
+      - "./test-data:/Microsip datos"
+    environment:
+      - FIREBIRD_USER=sysdba
+      - FIREBIRD_PASSWORD=masterkey
+      - EnableLegacyClientAuth=true
+
+  # Mock cloud API for local testing
+  mock-api:
+    image: python:3.11-slim
+    container_name: probe-mock-api
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./mock_api:/app
+    working_dir: /app
+    command: python server.py
+    depends_on:
+      - firebird

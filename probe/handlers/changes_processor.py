@@ -75,7 +75,7 @@ class ChangesProcessor:
                     break
                 self.process_change(conn, change, worker_id)
                 cur = conn.cursor()
-                cur.execute(f"UPDATE CHANGES_LOG SET PROCESSED = 1 WHERE LOG_ID = {change.log_id}")
+                cur.execute("UPDATE CHANGES_LOG SET PROCESSED = 1 WHERE LOG_ID = ?", (change.log_id,))
                 conn.commit()
             except Exception as e:
                 print(f"EXCEPTION ON WORKER {worker_id}")

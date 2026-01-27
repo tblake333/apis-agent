@@ -71,7 +71,7 @@ class ChangesIntake(Thread):
         """Process changes from the database."""
         try:
             cur = conn.cursor()
-            cur.execute(f"SELECT * FROM {self.TABLE_NAME} WHERE {self.PK_COL_NAME} >= {str(self.pos)} AND PROCESSED = 0")
+            cur.execute(f"SELECT * FROM {self.TABLE_NAME} WHERE {self.PK_COL_NAME} >= ? AND PROCESSED = 0", (self.pos,))
             logger.debug(f"Current position: {self.pos}")
             rows = cur.fetchall()
             for row in rows:

@@ -44,7 +44,7 @@ class DatabaseManager:
             table_handler = BaseTableHandler(self.conn, table_name, primary_key, sync_client)
             table_handler.handle_mutation(change, "Main")
             processed_cur = self.conn.cursor()
-            processed_cur.execute(f"UPDATE CHANGES_LOG SET PROCESSED = 1 WHERE LOG_ID = {change.log_id}")
+            processed_cur.execute("UPDATE CHANGES_LOG SET PROCESSED = 1 WHERE LOG_ID = ?", (change.log_id,))
             self.conn.commit()
 
     def ensure_clean_slate(self, conn: fdb.Connection):

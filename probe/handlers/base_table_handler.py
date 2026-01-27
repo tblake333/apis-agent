@@ -73,7 +73,7 @@ class BaseTableHandler:
             mutation: The INSERT change event
         """
         cur = self.conn.cursor()
-        cur.execute(f"SELECT * FROM {self.table} WHERE {self.primary_key} = {mutation.pk_val}")
+        cur.execute(f"SELECT * FROM {self.table} WHERE {self.primary_key} = ?", (mutation.pk_val,))
         row_data = cur.fetchone()
         if self.sync_client:
             self.sync_client.send_insert(
@@ -92,7 +92,7 @@ class BaseTableHandler:
             mutation: The UPDATE change event
         """
         cur = self.conn.cursor()
-        cur.execute(f"SELECT * FROM {self.table} WHERE {self.primary_key} = {mutation.pk_val}")
+        cur.execute(f"SELECT * FROM {self.table} WHERE {self.primary_key} = ?", (mutation.pk_val,))
         row_data = cur.fetchone()
         if self.sync_client:
             self.sync_client.send_update(

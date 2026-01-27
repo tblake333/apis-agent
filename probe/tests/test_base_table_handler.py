@@ -150,11 +150,14 @@ class TestHandleInsert:
         change = Change(1, 100, 1, 'INSERT', datetime.now(), False)
         handler.handle_insert(change)
 
-        # Verify SQL was executed
+        # Verify SQL was executed with parameterized query
         mock_cursor.execute.assert_called_once()
-        call_args = mock_cursor.execute.call_args[0][0]
-        assert 'SELECT * FROM USERS' in call_args
-        assert 'ID = 100' in call_args
+        call_args = mock_cursor.execute.call_args[0]
+        sql = call_args[0]
+        params = call_args[1]
+        assert 'SELECT * FROM USERS' in sql
+        assert 'ID = ?' in sql
+        assert params == (100,)
 
     @pytest.mark.unit
     def test_handle_insert_sends_to_sync_client(self):
@@ -231,9 +234,12 @@ class TestHandleUpdate:
         handler.handle_update(change)
 
         mock_cursor.execute.assert_called_once()
-        call_args = mock_cursor.execute.call_args[0][0]
-        assert 'SELECT * FROM USERS' in call_args
-        assert 'USER_ID = 200' in call_args
+        call_args = mock_cursor.execute.call_args[0]
+        sql = call_args[0]
+        params = call_args[1]
+        assert 'SELECT * FROM USERS' in sql
+        assert 'USER_ID = ?' in sql
+        assert params == (200,)
 
     @pytest.mark.unit
     def test_handle_update_sends_to_sync_client(self):
@@ -452,8 +458,11 @@ class TestSQLConstruction:
         change = Change(1, 100, 1, 'INSERT', datetime.now(), False)
         handler.handle_insert(change)
 
-        call_args = mock_cursor.execute.call_args[0][0]
-        assert 'CUSTOM_PK = 100' in call_args
+        call_args = mock_cursor.execute.call_args[0]
+        sql = call_args[0]
+        params = call_args[1]
+        assert 'CUSTOM_PK = ?' in sql
+        assert params == (100,)
 
     @pytest.mark.unit
     def test_sql_uses_pk_value_from_change(self):
@@ -473,5 +482,8 @@ class TestSQLConstruction:
         change = Change(1, 12345, 1, 'UPDATE', datetime.now(), False)
         handler.handle_update(change)
 
-        call_args = mock_cursor.execute.call_args[0][0]
-        assert '12345' in call_args
+        call_args = mock_cursor.execute.call_args[0]
+        sql = call_args[0]
+        params = call_args[1]
+        assert 'ID = ?' in sql
+        assert params == (12345,)

@@ -5,18 +5,31 @@ import tempfile
 import pytest
 import fdb
 from pathlib import Path
-from unittest.mock import Mock, MagicMock
+from unittest.mock import Mock, MagicMock, patch
 
 from config.app_config import AppConfig, DatabaseConfig, WorkerConfig, CloudSyncConfig
 from models.connection_info import ConnectionInfo
 
 
+def is_firebird_available():
+    """Check if Firebird library is available and compatible."""
+    try:
+        # Try to load the library to check architecture compatibility
+        fdb.load_api()
+        return True
+    except (OSError, Exception):
+        return False
+
+
 @pytest.fixture
 def temp_fdb_file():
     """Create a temporary FDB file for testing."""
+    if not is_firebird_available():
+        pytest.skip("Firebird not available or incompatible architecture")
+
     import os
     import uuid
-    
+
     # Create a unique temporary file path
     temp_dir = tempfile.gettempdir()
     temp_filename = f"test_{uuid.uuid4().hex}.fdb"
@@ -162,3 +175,144 @@ def mock_sync_client():
     mock.flush_buffer = Mock(return_value=0)
     mock.close = Mock()
     return mock
+
+
+@pytest.fixture
+def mock_urlopen():
+    """Mock urllib.request.urlopen for HTTP testing."""
+    with patch('urllib.request.urlopen') as mock:
+        yield mock
+
+
+@pytest.fixture
+def temp_sqlite_buffer():
+    """Temporary file-based SQLite buffer."""
+    import os
+    import uuid
+    temp_dir = tempfile.gettempdir()
+    temp_filename = f"test_buffer_{uuid.uuid4().hex}.db"
+    temp_path = os.path.join(temp_dir, temp_filename)
+
+    yield temp_path
+
+    # Cleanup
+    try:
+        if os.path.exists(temp_path):
+            os.unlink(temp_path)
+    except (OSError, FileNotFoundError):
+        pass
+
+
+@pytest.fixture
+def populated_fdb_with_tables(fdb_connection):
+    """FDB with test tables and sample data for schema discovery."""
+    # Create test tables with various types
+    fdb_connection.execute_immediate("""
+        CREATE TABLE USERS (
+            USER_ID INTEGER NOT NULL PRIMARY KEY,
+            USERNAME VARCHAR(50) NOT NULL,
+            EMAIL VARCHAR(100),
+            CREATED_AT TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            IS_ACTIVE SMALLINT DEFAULT 1
+        )
+    """)
+    fdb_connection.commit()
+
+    fdb_connection.execute_immediate("""
+        CREATE TABLE ORDERS (
+            ORDER_ID INTEGER NOT NULL PRIMARY KEY,
+            USER_ID INTEGER NOT NULL REFERENCES USERS(USER_ID),
+            TOTAL_AMOUNT NUMERIC(10, 2),
+            ORDER_DATE DATE,
+            STATUS VARCHAR(20) DEFAULT 'PENDING'
+        )
+    """)
+    fdb_connection.commit()
+
+    fdb_connection.execute_immediate("""
+        CREATE TABLE ORDER_ITEMS (
+            ITEM_ID INTEGER NOT NULL PRIMARY KEY,
+            ORDER_ID INTEGER NOT NULL REFERENCES ORDERS(ORDER_ID),
+            PRODUCT_NAME VARCHAR(100),
+            QUANTITY INTEGER,
+            UNIT_PRICE NUMERIC(8, 2)
+        )
+    """)
+    fdb_connection.commit()
+
+    # Insert sample data
+    fdb_connection.execute_immediate("""
+        INSERT INTO USERS (USER_ID, USERNAME, EMAIL) VALUES (1, 'john_doe', 'john@example.com')
+    """)
+    fdb_connection.execute_immediate("""
+        INSERT INTO USERS (USER_ID, USERNAME, EMAIL) VALUES (2, 'jane_smith', 'jane@example.com')
+    """)
+    fdb_connection.commit()
+
+    return fdb_connection
+
+
+@pytest.fixture
+def changes_log_setup(fdb_connection):
+    """FDB with CHANGES_LOG table and triggers configured."""
+    # Create BOOLEAN domain if it doesn't exist
+    try:
+        fdb_connection.execute_immediate("""
+            CREATE DOMAIN BOOLEAN AS SMALLINT CHECK (value is null or value in (0, 1))
+        """)
+        fdb_connection.commit()
+    except Exception:
+        fdb_connection.rollback()
+
+    # Create CHANGES_LOG table
+    fdb_connection.execute_immediate("""
+        CREATE TABLE CHANGES_LOG (
+            LOG_ID INTEGER NOT NULL PRIMARY KEY,
+            PK_VAL INTEGER NOT NULL,
+            TABLE_ID INTEGER NOT NULL,
+            MUTATION VARCHAR(31),
+            OCCURRED_AT TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            PROCESSED SMALLINT DEFAULT 0
+        )
+    """)
+    fdb_connection.commit()
+
+    # Create sequence for LOG_ID
+    fdb_connection.execute_immediate("CREATE SEQUENCE SEQ_CHANGES_LOG")
+    fdb_connection.commit()
+
+    # Create a test table to trigger changes
+    fdb_connection.execute_immediate("""
+        CREATE TABLE TEST_DATA (
+            ID INTEGER NOT NULL PRIMARY KEY,
+            NAME VARCHAR(100),
+            VALUE NUMERIC(10, 2)
+        )
+    """)
+    fdb_connection.commit()
+
+    return fdb_connection
+
+
+@pytest.fixture
+def real_cloud_sync_client():
+    """Create a real CloudSyncClient with in-memory buffer for testing."""
+    from sync.cloud_sync_client import CloudSyncClient
+
+    client = CloudSyncClient(
+        endpoint="http://localhost:8080/api/changes",
+        buffer_path=":memory:",
+        enable_background_retry=False
+    )
+    yield client
+    client.close()
+
+
+@pytest.fixture
+def real_local_buffer():
+    """Create a real LocalBuffer with in-memory storage for testing."""
+    from sync.local_buffer import LocalBuffer
+
+    buffer = LocalBuffer(":memory:")
+    yield buffer
+    buffer.close()

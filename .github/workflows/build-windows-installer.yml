@@ -1,0 +1,108 @@
+name: Build Windows Installer
+
+on:
+  # Manual trigger from GitHub UI
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version number (e.g., 1.0.0)'
+        required: false
+        default: '1.0.0'
+
+  # Auto-build on tags
+  push:
+    tags:
+      - 'v*'
+
+  # Optional: build on push to main for testing
+  # push:
+  #   branches: [main]
+  #   paths:
+  #     - 'probe/**'
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pyinstaller
+          pip install -r requirements.txt
+
+      - name: Build OtterProbe.exe (tray app)
+        working-directory: probe
+        run: pyinstaller --clean --noconfirm probe_tray.spec
+
+      - name: Build OtterProbeAuth.exe (auth wizard)
+        working-directory: probe
+        run: pyinstaller --clean --noconfirm probe_auth.spec
+
+      - name: Verify builds
+        working-directory: probe
+        run: |
+          if (Test-Path "dist\OtterProbe.exe") {
+            Write-Host "OtterProbe.exe built successfully"
+            Get-Item "dist\OtterProbe.exe" | Select-Object Name, Length
+          } else {
+            Write-Error "OtterProbe.exe not found"
+            exit 1
+          }
+
+          if (Test-Path "dist\OtterProbeAuth.exe") {
+            Write-Host "OtterProbeAuth.exe built successfully"
+            Get-Item "dist\OtterProbeAuth.exe" | Select-Object Name, Length
+          } else {
+            Write-Error "OtterProbeAuth.exe not found"
+            exit 1
+          }
+
+      - name: Build installer with Inno Setup
+        working-directory: probe
+        run: |
+          # Inno Setup is pre-installed on windows-latest
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer\probe_installer.iss
+
+      - name: List build artifacts
+        working-directory: probe
+        run: |
+          Write-Host "=== dist folder ==="
+          Get-ChildItem -Path dist -Recurse | Select-Object FullName, Length
+
+      - name: Upload executables
+        uses: actions/upload-artifact@v4
+        with:
+          name: OtterProbe-executables
+          path: |
+            probe/dist/OtterProbe.exe
+            probe/dist/OtterProbeAuth.exe
+          retention-days: 30
+
+      - name: Upload installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: OtterProbe-installer
+          path: probe/dist/installer/OtterProbeSetup.exe
+          retention-days: 30
+
+      # Create release if this is a tag push
+      - name: Create Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            probe/dist/installer/OtterProbeSetup.exe
+          draft: true
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

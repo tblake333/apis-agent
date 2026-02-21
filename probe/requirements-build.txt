@@ -1,0 +1,11 @@
+# Build dependencies for creating installers
+# Install with: pip install -r requirements-build.txt
+
+# PyInstaller for creating executables
+pyinstaller>=6.0.0
+
+# macOS: Native tray support via PyObjC
+pyobjc-framework-Cocoa>=9.0; sys_platform == "darwin"
+
+# All runtime dependencies
+-r ../requirements.txt
